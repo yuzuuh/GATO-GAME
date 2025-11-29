@@ -7,8 +7,8 @@ const http = require("http");
 const socketIo = require("socket.io");
 
 // Import server-side game objects
-const Player = require("./qodo/Player");
-const Collectible = require("./qodo/Collectible");
+const Player = require("./public/Player");
+const Collectible = require("./public/Collectible");
 
 const app = express();
 
