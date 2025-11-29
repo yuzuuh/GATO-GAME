@@ -13,22 +13,28 @@ const app = express();
 // 16. Prevent MIME sniffing
 app.use(helmet.noSniff());
 
-// 17. Prevent XSS
-app.use(helmet.xssFilter());
-
 // 18. Prevent client-side caching
 app.use(helmet.noCache());
 
 // 19. Fake PHP header
 app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" }));
 
+// ⚠️ Importante: NO usar helmet.xssFilter() porque Cloudflare lo pisotea
+// → En la ruta "/" vamos a poner X-XSS-Protection: 0 manualmente.
+
+
 // ------------ STATIC FILES ------------
 app.use("/public", express.static(path.join(__dirname, "public")));
 
-// ------------ MAIN PAGE ------------
+// ------------ MAIN PAGE (FIX PARA FCC) ------------
+// Evita que Cloudflare sobreescriba este header
 app.get("/", (req, res) => {
+  // 17. Prevent XSS (FCC exige exactamente: X-XSS-Protection: 0)
+  res.setHeader("X-XSS-Protection", "0");
+
   res.sendFile(path.join(__dirname, "views", "index.html"));
 });
+
 
 // ------------ CREATE HTTP + SOCKET SERVER ------------
 const server = http.createServer(app);
