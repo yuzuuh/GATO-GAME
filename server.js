@@ -1,18 +1,20 @@
 "use strict";
 
 const express = require("express");
-const helmet = require("helmet");
 const path = require("path");
 const http = require("http");
 const socketIo = require("socket.io");
 
+// CREA APP
 const app = express();
 
 // ------------ SECURITY MIDDLEWARE (FCC REQUIERE HELMET V3) ------------
-app.use(helmet.noSniff());
-app.use(helmet.xssFilter());
-app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" }));
-app.use(helmet.noCache());
+const helmet = require("helmet");
+
+app.use(helmet.noSniff());                          // Prevent MIME sniffing
+app.use(helmet.xssFilter());                       // Prevent XSS
+app.use(helmet.noCache());                         // No cache
+app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" })); // Fake PHP header
 
 // ------------ STATIC FILES ------------
 app.use("/public", express.static(path.join(__dirname, "public")));
