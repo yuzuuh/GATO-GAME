@@ -6,17 +6,13 @@ const path = require("path");
 const http = require("http");
 const socketIo = require("socket.io");
 
-// Import server-side game objects
-const Player = require("./public/Player");
-const Collectible = require("./public/Collectible");
-
 const app = express();
 
 // ------------ SECURITY MIDDLEWARE (FCC REQUIERE HELMET V3) ------------
-app.use(helmet.noSniff());  
-app.use(helmet.xssFilter());  
-app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" }));  
-app.use(helmet.noCache());   
+app.use(helmet.noSniff());
+app.use(helmet.xssFilter());
+app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" }));
+app.use(helmet.noCache());
 
 // ------------ STATIC FILES ------------
 app.use("/public", express.static(path.join(__dirname, "public")));
@@ -30,27 +26,56 @@ app.get("/", (req, res) => {
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// GAME STATE
-const players = {};     
-const collectible = new Collectible();  
+// ---------------- SERVER-SIDE GAME OBJECTS ----------------
+class Player {
+  constructor(id) {
+    this.id = id;
+    this.x = 50;
+    this.y = 50;
+    this.score = 0;
+  }
+}
 
-// ------------ SOCKET LOGIC ------------
+class Collectible {
+  constructor() {
+    this.resetPosition();
+  }
+
+  resetPosition() {
+    this.x = Math.floor(Math.random() * 550);
+    this.y = Math.floor(Math.random() * 350);
+    this.value = 1;
+  }
+
+  checkCollision(player) {
+    return (
+      Math.abs(player.x - this.x) < 20 &&
+      Math.abs(player.y - this.y) < 20
+    );
+  }
+}
+
+// GAME STATE
+const players = {};
+const collectible = new Collectible();
+
+// ---------------- SOCKET LOGIC ----------------
 io.on("connection", (socket) => {
-  
-  // Create new player
+
+  // Crear nuevo jugador
   players[socket.id] = new Player(socket.id);
 
-  // Send initial data to the new player
+  // Enviar info inicial
   socket.emit("init", {
     myId: socket.id,
     players,
     collectible
   });
 
-  // Notify everyone else
+  // Avisar al resto
   socket.broadcast.emit("playerJoined", players[socket.id]);
 
-  // Player movement
+  // Movimiento
   socket.on("move", (data) => {
     const p = players[socket.id];
     if (!p) return;
@@ -58,7 +83,6 @@ io.on("connection", (socket) => {
     p.x = data.x;
     p.y = data.y;
 
-    // Check for collectible collision
     if (collectible.checkCollision(p)) {
       p.score++;
       collectible.resetPosition();
@@ -70,7 +94,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Player disconnect
+  // Desconexión
   socket.on("disconnect", () => {
     delete players[socket.id];
     io.emit("playerLeft", socket.id);
