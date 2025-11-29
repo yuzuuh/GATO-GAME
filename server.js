@@ -1,56 +1,86 @@
-require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
-const expect = require('chai');
-const socket = require('socket.io');
-const cors = require('cors');
+"use strict";
 
-const fccTestingRoutes = require('./routes/fcctesting.js');
-const runner = require('./test-runner.js');
+const express = require("express");
+const helmet = require("helmet");
+const path = require("path");
+const http = require("http");
+const socketIo = require("socket.io");
+
+// Import server-side game objects
+const Player = require("./qodo/Player");
+const Collectible = require("./qodo/Collectible");
 
 const app = express();
 
-app.use('/public', express.static(process.cwd() + '/public'));
-app.use('/assets', express.static(process.cwd() + '/assets'));
+// ------------ SECURITY MIDDLEWARE (FCC REQUIERE HELMET V3) ------------
+app.use(helmet.noSniff());  
+app.use(helmet.xssFilter());  
+app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" }));  
+app.use(helmet.noCache());   
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// ------------ STATIC FILES ------------
+app.use("/public", express.static(path.join(__dirname, "public")));
 
-//For FCC testing purposes and enables user to connect from outside the hosting platform
-app.use(cors({origin: '*'})); 
-
-// Index page (static HTML)
-app.route('/')
-  .get(function (req, res) {
-    res.sendFile(process.cwd() + '/views/index.html');
-  }); 
-
-//For FCC testing purposes
-fccTestingRoutes(app);
-    
-// 404 Not Found Middleware
-app.use(function(req, res, next) {
-  res.status(404)
-    .type('text')
-    .send('Not Found');
+// ------------ MAIN PAGE ------------
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "views", "index.html"));
 });
 
-const portNum = process.env.PORT || 3000;
+// ------------ CREATE HTTP + SOCKET SERVER ------------
+const server = http.createServer(app);
+const io = socketIo(server);
 
-// Set up server and tests
-const server = app.listen(portNum, () => {
-  console.log(`Listening on port ${portNum}`);
-  if (process.env.NODE_ENV==='test') {
-    console.log('Running Tests...');
-    setTimeout(function () {
-      try {
-        runner.run();
-      } catch (error) {
-        console.log('Tests are not valid:');
-        console.error(error);
-      }
-    }, 1500);
-  }
+// GAME STATE
+const players = {};     
+const collectible = new Collectible();  
+
+// ------------ SOCKET LOGIC ------------
+io.on("connection", (socket) => {
+  
+  // Create new player
+  players[socket.id] = new Player(socket.id);
+
+  // Send initial data to the new player
+  socket.emit("init", {
+    myId: socket.id,
+    players,
+    collectible
+  });
+
+  // Notify everyone else
+  socket.broadcast.emit("playerJoined", players[socket.id]);
+
+  // Player movement
+  socket.on("move", (data) => {
+    const p = players[socket.id];
+    if (!p) return;
+
+    p.x = data.x;
+    p.y = data.y;
+
+    // Check for collectible collision
+    if (collectible.checkCollision(p)) {
+      p.score++;
+      collectible.resetPosition();
+    }
+
+    io.emit("stateUpdate", {
+      players,
+      collectible
+    });
+  });
+
+  // Player disconnect
+  socket.on("disconnect", () => {
+    delete players[socket.id];
+    io.emit("playerLeft", socket.id);
+  });
 });
 
-module.exports = app; // For testing
+// ------------ START SERVER ------------
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
+
+module.exports = app; // Para FCC tests
