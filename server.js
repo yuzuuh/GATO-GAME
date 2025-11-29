@@ -1,44 +1,40 @@
 "use strict";
 
 const express = require("express");
-const app = express();
+const helmet = require("helmet");
+const path = require("path");
 const http = require("http");
 const socketIo = require("socket.io");
-const path = require("path");
-const helmet = require("helmet");
 
-// *************************
-// SECURITY (FCC REQUIERE EXACTO ESTO)
-// *************************
+const app = express();
 
-// Prevent MIME type sniffing
+// ------------ SECURITY MIDDLEWARE (FCC REQUIERE HELMET V3) ------------
+
+// 16. Prevent MIME sniffing
 app.use(helmet.noSniff());
 
-// Prevent XSS attacks
+// 17. Prevent XSS
 app.use(helmet.xssFilter());
 
-// Disable client-side caching
+// 18. Prevent client-side caching
 app.use(helmet.noCache());
 
-// Fake the X-Powered-By header
+// 19. Fake PHP header
 app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" }));
 
-// *************************
-// STATIC FILES
-// *************************
+// ------------ STATIC FILES ------------
 app.use("/public", express.static(path.join(__dirname, "public")));
 
+// ------------ MAIN PAGE ------------
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "index.html"));
 });
 
-// *************************
-// GAME SERVER
-// *************************
-
+// ------------ CREATE HTTP + SOCKET SERVER ------------
 const server = http.createServer(app);
 const io = socketIo(server);
 
+// ---------------- SERVER-SIDE GAME OBJECTS ----------------
 class Player {
   constructor(id) {
     this.id = id;
@@ -56,7 +52,6 @@ class Collectible {
   resetPosition() {
     this.x = Math.floor(Math.random() * 550);
     this.y = Math.floor(Math.random() * 350);
-    this.value = 1;
   }
 
   checkCollision(player) {
@@ -67,9 +62,11 @@ class Collectible {
   }
 }
 
+// GAME STATE
 const players = {};
 const collectible = new Collectible();
 
+// ---------------- SOCKET LOGIC ----------------
 io.on("connection", (socket) => {
   players[socket.id] = new Player(socket.id);
 
@@ -105,9 +102,11 @@ io.on("connection", (socket) => {
   });
 });
 
+// ------------ START SERVER ------------
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
 
-module.exports = app;
+module.exports = app; // GCC Tests
+
