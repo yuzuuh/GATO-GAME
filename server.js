@@ -1,34 +1,44 @@
 "use strict";
 
 const express = require("express");
-const path = require("path");
+const app = express();
 const http = require("http");
 const socketIo = require("socket.io");
-
-// CREA APP
-const app = express();
-
-// ------------ SECURITY MIDDLEWARE (FCC REQUIERE HELMET V3) ------------
+const path = require("path");
 const helmet = require("helmet");
 
-app.use(helmet.noSniff());                          // Prevent MIME sniffing
-app.use(helmet.xssFilter());                       // Prevent XSS
-app.use(helmet.noCache());                         // No cache
-app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" })); // Fake PHP header
+// *************************
+// SECURITY (FCC REQUIERE EXACTO ESTO)
+// *************************
 
-// ------------ STATIC FILES ------------
+// Prevent MIME type sniffing
+app.use(helmet.noSniff());
+
+// Prevent XSS attacks
+app.use(helmet.xssFilter());
+
+// Disable client-side caching
+app.use(helmet.noCache());
+
+// Fake the X-Powered-By header
+app.use(helmet.hidePoweredBy({ setTo: "PHP 7.4.3" }));
+
+// *************************
+// STATIC FILES
+// *************************
 app.use("/public", express.static(path.join(__dirname, "public")));
 
-// ------------ MAIN PAGE ------------
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "index.html"));
 });
 
-// ------------ CREATE HTTP + SOCKET SERVER ------------
+// *************************
+// GAME SERVER
+// *************************
+
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// ---------------- SERVER-SIDE GAME OBJECTS ----------------
 class Player {
   constructor(id) {
     this.id = id;
@@ -57,27 +67,20 @@ class Collectible {
   }
 }
 
-// GAME STATE
 const players = {};
 const collectible = new Collectible();
 
-// ---------------- SOCKET LOGIC ----------------
 io.on("connection", (socket) => {
-
-  // Crear nuevo jugador
   players[socket.id] = new Player(socket.id);
 
-  // Enviar info inicial
   socket.emit("init", {
     myId: socket.id,
     players,
     collectible
   });
 
-  // Avisar al resto
   socket.broadcast.emit("playerJoined", players[socket.id]);
 
-  // Movimiento
   socket.on("move", (data) => {
     const p = players[socket.id];
     if (!p) return;
@@ -96,17 +99,15 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Desconexión
   socket.on("disconnect", () => {
     delete players[socket.id];
     io.emit("playerLeft", socket.id);
   });
 });
 
-// ------------ START SERVER ------------
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
 
-module.exports = app; // Para FCC tests
+module.exports = app;
